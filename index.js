@@ -1,15 +1,20 @@
 const express = require('express')
 const app = express()
-// CONTINUAR EJERCICIOS 3C!
+const Person = require('./models/person')
+
 var morgan = require('morgan')
-
 app.use(morgan('tiny'))
-
 morgan.token('body', (req) => {
     return req.method === 'POST' ? JSON.stringify(req.body) : '';
   });
-  
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'));
+
+//const Person = mongoose.model('Person', personSchema)
+
+//const person = new Person({
+  //name: name, 
+  //number: number,
+//})
 
 let persons = [
     { 
@@ -35,7 +40,6 @@ let persons = [
 ]
 
 app.use(express.static('dist'))
-
 const requestLogger = (request, response, next) => {
   console.log('Method:', request.method)
   console.log('Path:  ', request.path)
@@ -45,7 +49,6 @@ const requestLogger = (request, response, next) => {
 }
 
 const cors = require('cors')
-
 app.use(cors())
 
 app.use(express.json())
@@ -56,8 +59,10 @@ const unknownEndpoint = (request, response) => {
 }
 
 app.get('/api/persons', (request, response) => {
+  Person.find({}).then(result => {
     response.json(persons)
   })
+})
 
 app.get('/info', (request, response) => {
 response.send(
@@ -82,16 +87,18 @@ app.get('/api/persons/:id', (request, response) => {
       : 0
     return maxId + 1
   }
-  
-app.post('/api/persons', (request, response) => {
-const body = request.body
-console.log(body)
 
-if (!body.name || !body.number) {
+
+app.post('/api/persons', (request, response) => {
+  const body = request.body
+  console.log(body)
+
+  if (!body.name || !body.number) {
     return response.status(400).json({ 
-    error: 'name or number missing' 
-    })
-} 
+      error: 'name or number missing' 
+      })
+  } 
+
 const existingPerson = persons.find(person => person.number === body.number);
 if (existingPerson) {
     return response.status(400).json({ 
@@ -99,16 +106,23 @@ if (existingPerson) {
     });
 }
 
-const person = {
-    name: body.name,
-    number: body.number || false,
-    id: generateId(),
-}
+const person = new Person({
+  name: body.name,
+  number: body.number || false,
+  id: generateId(),
+});
+
+person.save().then(result => {
+  console.log(`Added ${person.name} number ${person.number} to phonebook`)
+  response.json(person);
+});
 
 persons = persons.concat(person)
 
-response.json(person)
-})
+// response.json(person)
+});
+
+
 
 app.delete('/api/persons/:id', (request, response) => {
 const id = Number(request.params.id)
