@@ -9,13 +9,6 @@ morgan.token('body', (req) => {
   });
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'));
 
-//const Person = mongoose.model('Person', personSchema)
-
-//const person = new Person({
-  //name: name, 
-  //number: number,
-//})
-
 let persons = [
     { 
       id: 1,
@@ -40,6 +33,9 @@ let persons = [
 ]
 
 app.use(express.static('dist'))
+app.use(express.static('build'))
+app.use(express.json())
+
 const requestLogger = (request, response, next) => {
   console.log('Method:', request.method)
   console.log('Path:  ', request.path)
@@ -50,17 +46,11 @@ const requestLogger = (request, response, next) => {
 
 const cors = require('cors')
 app.use(cors())
-
-app.use(express.json())
 app.use(requestLogger)
-
-const unknownEndpoint = (request, response) => {
-  response.status(404).send({ error: 'unknown endpoint' })
-}
 
 app.get('/api/persons', (request, response) => {
   Person.find({}).then(result => {
-    response.json(persons)
+    response.json(result)
   })
 })
 
@@ -71,23 +61,24 @@ response.send(
     )
 })
 
-app.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(person => person.id === id)
+app.get('/api/persons/:id', (request, response, next) => {
+  Person.findById(request.params.id)
+  .then(person => {
     if (person) {
       response.json(person)
     } else {
-      response.status(404).send("HTTP ERROR 404")
+      response.status(404).end()
     }
   })
+  .catch(error => next(error))
+})
 
-  const generateId = () => {
-    const maxId = persons.length > 0
-      ? Math.max(...persons.map(n => n.id))
-      : 0
-    return maxId + 1
-  }
-
+const generateId = () => {
+  const maxId = persons.length > 0
+    ? Math.max(...persons.map(n => n.id))
+    : 0
+  return maxId + 1
+}
 
 app.post('/api/persons', (request, response) => {
   const body = request.body
@@ -109,12 +100,12 @@ if (existingPerson) {
 const person = new Person({
   name: body.name,
   number: body.number || false,
-  id: generateId(),
+  //id: generateId(),
 });
 
-person.save().then(result => {
+person.save().then(savedPerson => {
   console.log(`Added ${person.name} number ${person.number} to phonebook`)
-  response.json(person);
+  response.json(savedPerson);
 });
 
 persons = persons.concat(person)
@@ -122,19 +113,46 @@ persons = persons.concat(person)
 // response.json(person)
 });
 
-
-
-app.delete('/api/persons/:id', (request, response) => {
-const id = Number(request.params.id)
-const person = persons.filter(person => person.id !== id)
-if (person) {
+app.delete('/api/persons/:id', (request, response, next) => {
+Person.findByIdAndDelete(request.params.id)
+  .then(result => {
     response.status(200).end()
-} else {
-    response.status(204).send("HTTP ERROR 204")
-    }
+  })
+  .catch(error => next(error))
 })
 
+app.put('/api/persons/:id', (request, response, next) => {
+  const body = request.body
+
+  const person = {
+    name: body.name,
+    number: body.number,
+  }
+
+  Person.findByIdAndUpdate(request.params.id, person, { new: true })
+    .then(updatedPerson => {
+      response.json(updatedPerson)
+    })
+    .catch(error => next(error))
+})
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
 app.use(unknownEndpoint)
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } 
+
+  next(error)
+}
+
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
