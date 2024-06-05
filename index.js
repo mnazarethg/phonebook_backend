@@ -101,12 +101,12 @@ person.save()
   response.json(savedPerson);
   })
   .catch(error => next(error))
+});
 
-
-persons = persons.concat(person)
+//persons = persons.concat(person)
 
 // response.json(person)
-});
+
 
 app.delete('/api/persons/:id', (request, response, next) => {
 Person.findByIdAndDelete(request.params.id)
